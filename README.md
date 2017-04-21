@@ -2,7 +2,7 @@
 A switch to indicate VPN (or any other MQTT device) status.
 Works with Adafruit Feather Huzzah.
 
-#### Compontents
+#### Components
 * Adafruit Feather Huzzah
 * 3x 270 Ohm resistors (through hole recommended)
 * 1 RGB LED (can use 3 LEDS or be adapted for one LED)
