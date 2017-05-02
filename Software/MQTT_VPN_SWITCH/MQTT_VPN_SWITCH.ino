@@ -8,8 +8,8 @@ void mqtt_callback(char *topic, uint8_t* payload, uint32_t len);
 
 //Hardware Setup
 #define SWITCH_PIN 5
-#define SW_OFF 0
-#define SW_ON 1
+#define SW_OFF 1
+#define SW_ON 0
 #define POWER_SW_PIN 4
 #define PWR_OFF 0
 #define PWR_ON 1
@@ -29,7 +29,7 @@ uint8_t color[3];
 uint8_t next_color[3];
 uint32_t animation_time;
 #define PATTERN_FAST 500
-#define PATTERN_SLOW 12000
+#define PATTERN_SLOW 3000
 uint16_t animation_rate;
 uint8_t animation_state;
 uint8_t animation_select;
@@ -81,7 +81,7 @@ void update_display() {
     case ANIM_STATE_BREATHE:
       switch(animation_state) {
         case 0:
-          coeff = 32 + 233 * sin((PI / 2)  * (float)anim_t / (float)animation_rate);
+          coeff = 16 + 239 * sin((PI / 2)  * (float)anim_t / (float)animation_rate);
           next_color[0] = ((uint16_t)color[0] * coeff) >> 8;
           next_color[1] = ((uint16_t)color[1] * coeff) >> 8;
           next_color[2] = ((uint16_t)color[2] * coeff) >> 8;
@@ -91,16 +91,16 @@ void update_display() {
           set_color(color);
           break;
         case 2:
-          coeff = 255 - 233 * sin((PI / 2)  * (float)anim_t / (float)animation_rate);
+          coeff = 255 - 239 * sin((PI / 2)  * (float)anim_t / (float)animation_rate);
           next_color[0] = ((uint16_t)color[0] * coeff) >> 8;
           next_color[1] = ((uint16_t)color[1] * coeff) >> 8;
           next_color[2] = ((uint16_t)color[2] * coeff) >> 8;
           set_color(next_color);
           break;
         case 3:
-          next_color[0] = (color[0] * 32) >> 8;
-          next_color[1] = (color[1] * 32) >> 8;
-          next_color[2] = (color[2] * 32) >> 8;
+          next_color[0] = (color[0] * 16) >> 8;
+          next_color[1] = (color[1] * 16) >> 8;
+          next_color[2] = (color[2] * 16) >> 8;
           set_color(next_color);
           break;
         case 4:
@@ -165,6 +165,7 @@ bool wifi_connect() {
 #define MQTT_SERVER "192.168.2.1"
 #define MQTT_SERVERPORT 1883
 const char* MQTT_STATUS = "vpn/status";
+const char* MQTT_CONTROL = "vpn/control";
 
 PubSubClient client(MQTT_SERVER, MQTT_SERVERPORT, mqtt_callback, wifi);
 
@@ -180,7 +181,7 @@ bool mqtt_connect() {
   return false;
 }
 
-bool is_topic(const char* t, const char *tt){
+bool is_string(const char* t, const char *tt){
   return strcmp(t, tt) == 0; 
 }
 
@@ -189,13 +190,13 @@ void handle_switch() {
   uint8_t prev_state = switch_state;
   switch_state = digitalRead(SWITCH_PIN);
   if (prev_state != switch_state) {
-    delay(10);
+    delay(10); //debounce
     switch_state = digitalRead(SWITCH_PIN);
     String payload = switch_state == SW_ON ? "ON" : "OFF";
+    Serial.println(payload);
     if (client.connected()) {
-      client.publish(MQTT_STATUS, (char*) payload.c_str());
+      client.publish(MQTT_CONTROL, (char*) payload.c_str(), true);
     }
-    mqtt_callback("vpn/status", (uint8_t*) payload.c_str(), payload.length());
   }
 }
 
@@ -214,9 +215,9 @@ void mqtt_callback(char *topic, uint8_t* payload, uint32_t len) {
   uint8_t *safe_buffer = new uint8_t[len+1];
   memcpy(safe_buffer, payload, len);
   safe_buffer[len] = '\0';
-  if (is_topic(topic, MQTT_STATUS)) {
-    Serial.println((char*)payload);
-    if (strcmp((char*)payload, "ON") == 0) {
+  if (is_string(topic, MQTT_STATUS)) {
+    Serial.println((char*)safe_buffer);
+    if (is_string((char*)safe_buffer, "ON")) {
       //Check against switch status
       animation_rate = PATTERN_SLOW;
       if(switch_state == SW_OFF) {
@@ -226,8 +227,7 @@ void mqtt_callback(char *topic, uint8_t* payload, uint32_t len) {
         memcpy(color, COLOR_GREEN, sizeof(color));
         animation_select = ANIM_STATE_BREATHE;
       }
-    } else if(strcmp((char*)payload, "OFF") == 0) {
-      Serial.println("QT FAST");
+    } else if(is_string((char*)safe_buffer, "OFF")) {
       animation_rate = PATTERN_FAST;
       if(switch_state == SW_ON) {
         memcpy(color,COLOR_RED, sizeof(color));

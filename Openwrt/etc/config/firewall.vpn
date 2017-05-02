@@ -1,0 +1,16 @@
+
+config zone
+        option name 'vpn'
+        option input 'REJECT'
+        option output 'ACCEPT'
+        option masq '1'
+        option network 'vpn0'
+        option forward 'REJECT'
+
+config forwarding
+        option dest 'vpn'
+        option src 'lan'
+
+config forwarding
+        option dest 'lan'
+        option src 'vpn'
